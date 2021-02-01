@@ -1,0 +1,67 @@
+version: 2.1
+
+orbs:
+  python: circleci/python@1.2.1
+
+jobs:
+  build-and-test:
+    executor: python/default
+    steps:
+      - checkout
+
+      # Install dev requirements
+      - python/install-packages:
+          pip-dependency-file: requirements.txt
+          pkg-manager: pip
+
+      # Install the package under test
+      - python/install-packages:
+          pkg-manager: pip-dist
+
+      - run:
+          name: Test
+          command: stubtest mandrill
+
+      - run:
+          name: Build dist package
+          command: python setup.py sdist
+
+      - persist_to_workspace:
+          root: dist
+          paths:
+            - "*.tar.gz"
+
+  deploy:
+    executor: python/default
+    steps:
+      - checkout
+
+      - python/install-packages:
+          pip-dependency-file: requirements.txt
+          pkg-manager: pip
+
+      - attach_workspace:
+          at: dist
+
+      - run:
+          name: Deploy to PyPI
+          command: python -m twine upload dist/*
+
+workflows:
+  main:
+    jobs:
+      - build-and-test:
+          filters:
+            tags:
+              only: /.*/
+
+      - deploy:
+          context: PyPI
+          requires:
+            - build-and-test
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+
